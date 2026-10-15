@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Environment and sensitive keys
+.env
+.env.local
+.env.*.local
+
+# Network captures and logs
+*.pcap
+*.pcapng
+*.cap
+*.dmp
+*.log
+
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE and editor files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

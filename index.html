@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nessus Network Shield | Office Network SOC & Security Dashboard</title>
+  <meta name="description" content="Enterprise Security Operations Center Dashboard for Tenable Nessus office network scans, packet inspection, and vulnerability remediation.">
+  
+  <!-- Modern Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="app-layout">
+    
+    <!-- Top Navigation Bar -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-icon">🛡️</div>
+        <div class="brand-text">
+          <h1>Nessus Network Shield</h1>
+          <span>Office Network SOC • Real-Time Telemetry</span>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="nav-tabs" aria-label="Main Navigation">
+        <button class="nav-tab-btn active" data-tab="overview" id="navTabOverview">
+          <span>📊</span> Overview & Posture
+        </button>
+        <button class="nav-tab-btn" data-tab="network" id="navTabNetwork">
+          <span>🌐</span> Office Topology
+        </button>
+        <button class="nav-tab-btn" data-tab="vulnerabilities" id="navTabVulns">
+          <span>🛡️</span> Vulnerabilities
+        </button>
+        <button class="nav-tab-btn" data-tab="packets" id="navTabPackets">
+          <span>🦈</span> Wireshark Packets
+        </button>
+        <button class="nav-tab-btn" data-tab="api-controller" id="navTabApi">
+          <span>⚡</span> Live Nessus API
+        </button>
+      </nav>
+
+      <!-- Action Buttons & Status -->
+      <div class="topbar-actions">
+        <div class="api-status-badge" id="apiStatusBadge">
+          <span class="status-dot" id="apiStatusDot"></span>
+          <span id="apiStatusText">Standby (Offline)</span>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="window.dashboardApp.openImportModal()" id="btnImportScan">
+          <span>📁</span> Import .nessus
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="window.dashboardApp.openApiSettings()" id="btnApiSettings">
+          <span>⚙️</span> API Config
+        </button>
+        <button class="btn btn-outline btn-sm" onclick="window.dashboardApp.clearScanData()" id="btnClearData" title="Reset and clear current scan data">
+          <span>🗑️</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Viewport Area -->
+    <main class="main-viewport">
+      
+      <!-- Sub-header metadata -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; flex-wrap:wrap; gap:0.75rem;">
+        <div>
+          <h2 id="hdrScanName" style="font-size:1.4rem; font-weight:700; color:#fff;">No Scan Data Loaded</h2>
+          <div id="hdrScanMeta" style="font-size:0.8rem; color:var(--text-muted); font-family:var(--font-mono); margin-top:0.2rem;">
+            Ready for live Nessus API synchronization or .nessus file import
+          </div>
+        </div>
+        <div style="display:flex; gap:0.6rem;">
+          <button class="btn btn-secondary btn-sm" onclick="window.dashboardApp.exportCSV()" id="btnExportCsv">
+            <span>📥</span> Export CSV
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="window.dashboardApp.exportReport()" id="btnPrintReport">
+            <span>🖨️</span> Print / PDF
+          </button>
+        </div>
+      </div>
+
+      <!-- Critical Security Alert Strip -->
+      <div class="scan-alert-strip healthy" id="scanAlertStrip">
+        <div class="alert-left">
+          <span class="alert-icon">📡</span>
+          <div class="alert-text">
+            <h4 id="alertStripTitle">Dashboard Ready & Standing By</h4>
+            <p id="alertStripMsg">No scan data currently loaded. Import a .nessus file or sync from the Live Nessus API tab.</p>
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="window.dashboardApp.switchTab('api-controller')">
+          Connect API
+        </button>
+      </div>
+
+      <!-- Metrics Grid -->
+      <div class="metrics-grid">
+        <div class="metric-card network">
+          <div class="metric-header">
+            <span class="metric-title">Discovered Hosts</span>
+            <div class="metric-icon-badge" style="background:rgba(56,189,248,0.15); color:var(--accent-cyan);">🖥️</div>
+          </div>
+          <div class="metric-number" id="metricTotalHosts">0</div>
+          <div class="metric-sub">No hosts loaded</div>
+        </div>
+
+        <div class="metric-card critical">
+          <div class="metric-header">
+            <span class="metric-title">Critical Threats</span>
+            <div class="metric-icon-badge" style="background:var(--crit-bg); color:var(--crit-color);">⚠️</div>
+          </div>
+          <div class="metric-number" id="metricCritVulns" style="color:var(--crit-color);">0</div>
+          <div class="metric-sub">0 critical</div>
+        </div>
+
+        <div class="metric-card high">
+          <div class="metric-header">
+            <span class="metric-title">High Severity</span>
+            <div class="metric-icon-badge" style="background:var(--high-bg); color:var(--high-color);">🔥</div>
+          </div>
+          <div class="metric-number" id="metricHighVulns" style="color:var(--high-color);">0</div>
+          <div class="metric-sub">0 high</div>
+        </div>
+
+        <div class="metric-card medium">
+          <div class="metric-header">
+            <span class="metric-title">Total Findings</span>
+            <div class="metric-icon-badge" style="background:var(--med-bg); color:var(--med-color);">📋</div>
+          </div>
+          <div class="metric-number" id="metricTotalVulns">0</div>
+          <div class="metric-sub">0 plugins</div>
+        </div>
+
+        <div class="metric-card network">
+          <div class="metric-header">
+            <span class="metric-title">Packets Probed</span>
+            <div class="metric-icon-badge" style="background:rgba(129,140,248,0.15); color:var(--accent-purple);">📦</div>
+          </div>
+          <div class="metric-number" id="metricTotalPackets">0</div>
+          <div class="metric-sub">0 probes</div>
+        </div>
+      </div>
+
+      <!-- TAB 1: OVERVIEW & POSTURE -->
+      <section class="tab-view active" id="tab-overview">
+        <div class="dashboard-grid-2col">
+          
+          <!-- Severity Breakdown & Donut -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <h3>Vulnerability Severity Matrix</h3>
+                <span>Tenable Nessus Distribution</span>
+              </div>
+            </div>
+            <div class="chart-card-body">
+              <canvas id="sevDonutCanvas" width="280" height="250"></canvas>
+            </div>
+            <div class="chart-legend">
+              <div class="legend-item"><span class="legend-color" style="background:#ff3366;"></span> Critical</div>
+              <div class="legend-item"><span class="legend-color" style="background:#ff7828;"></span> High</div>
+              <div class="legend-item"><span class="legend-color" style="background:#f59e0b;"></span> Medium</div>
+              <div class="legend-item"><span class="legend-color" style="background:#3b82f6;"></span> Low</div>
+              <div class="legend-item"><span class="legend-color" style="background:#06b6d4;"></span> Info</div>
+            </div>
+          </div>
+
+          <!-- Overall Network Risk Gauge -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <h3>Network Threat Posture</h3>
+                <span>Aggregated Office Score</span>
+              </div>
+            </div>
+            <div class="risk-gauge-container">
+              <div style="position:relative; width:170px; height:170px; display:flex; align-items:center; justify-content:center;">
+                <svg class="risk-circle-svg" viewBox="0 0 160 160">
+                  <circle class="risk-circle-bg" cx="80" cy="80" r="70"></circle>
+                  <circle class="risk-circle-val" id="riskGaugeVal" cx="80" cy="80" r="70"></circle>
+                </svg>
+                <div class="risk-center-label">
+                  <div class="score" id="riskGaugeScore">0</div>
+                  <div class="sub">RISK INDEX</div>
+                </div>
+              </div>
+              <div style="margin-top:1.15rem; font-family:var(--font-mono); font-weight:700; font-size:0.9rem;" id="riskGaugeBadge">
+                STANDBY
+              </div>
+              <p style="font-size:0.75rem; color:var(--text-dim); text-align:center; margin-top:0.35rem; max-width:260px;">
+                Calculated based on VPR, public exploit availability, and exposed high-value infrastructure.
+              </p>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 2nd Row: Top Vulnerable Assets & Most Exposed Ports -->
+        <div class="dashboard-grid-2col">
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <h3>Highest Risk Assets</h3>
+                <span>Prioritized Remediation Targets</span>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="window.dashboardApp.switchTab('network')">View All Assets</button>
+            </div>
+            <div id="topHostsContainer">
+              <!-- Dynamically rendered -->
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <h3>Most Exposed Network Services</h3>
+                <span>Open Ports Across Office Endpoints</span>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="window.dashboardApp.switchTab('packets')">Packet Traces</button>
+            </div>
+            <div id="portDistContainer">
+              <!-- Dynamically rendered -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: OFFICE TOPOLOGY & NETWORK MAP -->
+      <section class="tab-view" id="tab-network">
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <h3>Office Network Topology & Discovered Assets</h3>
+              <span>Subnet & VLAN Segmentation View</span>
+            </div>
+            <div class="panel-tools" style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+              <div class="search-input-group" style="min-width:280px;">
+                <span class="search-icon" title="Click to search" onclick="window.dashboardApp.triggerHostSearch()">🔍</span>
+                <input type="text" id="globalSearchInput" placeholder="Search IP, hostname, or OS...">
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="window.dashboardApp.triggerHostSearch()">Search</button>
+              <button class="btn btn-outline btn-sm" onclick="document.getElementById('globalSearchInput').value=''; window.dashboardApp.triggerHostSearch();">Clear</button>
+            </div>
+          </div>
+
+          <div class="network-subnets-container" id="networkSubnetsContainer">
+            <!-- Dynamically populated subnet cards and host cards -->
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: VULNERABILITIES MATRIX -->
+      <section class="tab-view" id="tab-vulnerabilities">
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <h3>Vulnerability & Threat Catalog</h3>
+              <span>Tenable Nessus Plugin Findings</span>
+            </div>
+            <div class="panel-tools" style="display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+              <div class="search-input-group" style="min-width:240px;">
+                <span class="search-icon" title="Click to search" onclick="window.dashboardApp.triggerVulnSearch()">🔍</span>
+                <input type="text" id="vulnSearchInput" placeholder="Search CVE, Plugin ID, name...">
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="window.dashboardApp.triggerVulnSearch()">Search</button>
+              <div class="filter-pills">
+                <button class="filter-pill active" data-severity="all">All</button>
+                <button class="filter-pill" data-severity="critical">Critical</button>
+                <button class="filter-pill" data-severity="high">High</button>
+                <button class="filter-pill" data-severity="medium">Medium</button>
+                <button class="filter-pill" data-severity="low">Low</button>
+                <button class="filter-pill" data-severity="info">Info</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table class="nessus-table" id="vulnTable">
+              <thead>
+                <tr>
+                  <th>Plugin ID</th>
+                  <th>Vulnerability Name & Synopsis</th>
+                  <th>Severity</th>
+                  <th>CVSS v3</th>
+                  <th>CVE ID</th>
+                  <th>Exploit</th>
+                  <th>Affected</th>
+                </tr>
+              </thead>
+              <tbody id="vulnTableBody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: WIRESHARK PACKET TRACKER & PROTOCOL ANALYZER -->
+      <section class="tab-view" id="tab-packets">
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <span style="font-size:1.4rem;">🦈</span>
+              <div>
+                <h3>Wireshark Network Traffic & User Activity Intelligence</h3>
+                <span>Real-Time Website Tracking • User Attribution • Protocol Dissection</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+              <button class="btn btn-primary btn-sm" id="wsBtnStart" onclick="window.wiresharkViewer.startLiveCapture()">
+                <span>▶️</span> Start Live Sniff
+              </button>
+              <button class="btn btn-secondary btn-sm" id="wsBtnStop" style="display:none;" onclick="window.wiresharkViewer.stopLiveCapture()">
+                <span>⏸️</span> Pause Sniff
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="window.dashboardApp.openPcapImportModal()">
+                <span>📁</span> Load .pcap
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="window.wiresharkViewer.loadSampleOfficeTrace()" title="Load realistic office multi-user trace">
+                <span>⚡</span> Demo Office Trace
+              </button>
+              <button class="btn btn-outline btn-sm" onclick="window.wiresharkViewer.openHowItWorksModal()" title="How Wireshark captures website and user data">
+                <span>💡</span> How It Works
+              </button>
+              <button class="btn btn-outline btn-sm" onclick="window.wiresharkViewer.clearPackets()" title="Clear packets">
+                <span>🗑️</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Sub-Tab Navigation -->
+          <div style="display:flex; gap:0.6rem; margin-bottom:1.5rem; border-bottom:1px solid var(--border-glass); padding-bottom:0.85rem; flex-wrap:wrap;">
+            <button class="nav-tab-btn active" id="wsSubtabWeb" onclick="window.wiresharkViewer.switchSubtab('web')">
+              <span>🌐</span> Websites & Users Intelligence
+            </button>
+            <button class="nav-tab-btn" id="wsSubtabMatrix" onclick="window.wiresharkViewer.switchSubtab('matrix')">
+              <span>👥</span> User-to-Site Matrix
+            </button>
+            <button class="nav-tab-btn" id="wsSubtabDissector" onclick="window.wiresharkViewer.switchSubtab('dissector')">
+              <span>🦈</span> Raw Wireshark Dissector (3-Pane)
+            </button>
+          </div>
+
+          <!-- SUB-VIEW 1: WEBSITES & USERS INTELLIGENCE -->
+          <div id="wsViewWeb">
+            
+            <!-- Web KPIs (Clean Standby Default) -->
+            <div class="metrics-grid" style="margin-bottom:1.5rem;">
+              <div class="metric-card network">
+                <div class="metric-header">
+                  <span class="metric-title">Apps & Sites Active</span>
+                  <div class="metric-icon-badge" style="background:rgba(56,189,248,0.15); color:var(--accent-cyan);">🌐</div>
+                </div>
+                <div class="metric-number" id="wsKpiUniqueSites">0</div>
+                <div class="metric-sub">Identified Network Services</div>
+              </div>
+
+              <div class="metric-card critical">
+                <div class="metric-header">
+                  <span class="metric-title">Active Users / IPs</span>
+                  <div class="metric-icon-badge" style="background:var(--crit-bg); color:var(--crit-color);">👥</div>
+                </div>
+                <div class="metric-number" id="wsKpiActiveUsers" style="color:var(--accent-cyan);">0</div>
+                <div class="metric-sub">Connected Network Clients</div>
+              </div>
+
+              <div class="metric-card high">
+                <div class="metric-header">
+                  <span class="metric-title">Top App in Use</span>
+                  <div class="metric-icon-badge" style="background:var(--high-bg); color:var(--high-color);">🔥</div>
+                </div>
+                <div class="metric-number" id="wsKpiTopSite" style="font-size:1.3rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#fff;">Standby</div>
+                <div class="metric-sub">Highest Bandwidth Service</div>
+              </div>
+
+              <div class="metric-card network">
+                <div class="metric-header">
+                  <span class="metric-title">Web Bandwidth</span>
+                  <div class="metric-icon-badge" style="background:rgba(129,140,248,0.15); color:var(--accent-purple);">📊</div>
+                </div>
+                <div class="metric-number" id="wsKpiTotalWebBytes" style="font-size:1.6rem; color:#fff;">0 B</div>
+                <div class="metric-sub">Transferred Payload Volume</div>
+              </div>
+            </div>
+
+            <!-- Empty State Standby Banner (Shown when no traffic is captured) -->
+            <div id="wsEmptyStateBanner" style="display:none; background:rgba(15,23,42,0.8); border:1px dashed var(--accent-cyan); border-radius:12px; padding:2.25rem 1.5rem; text-align:center; margin-bottom:1.75rem;">
+              <div style="font-size:2.4rem; margin-bottom:0.75rem;">🦈 🌐</div>
+              <h4 style="font-size:1.15rem; font-weight:700; color:#fff; margin-bottom:0.4rem;">Wireshark Packet Tracker Ready</h4>
+              <p style="font-size:0.85rem; color:var(--text-muted); max-width:620px; margin:0 auto 1.5rem auto; line-height:1.5;">
+                Track which applications and websites are being used on the network and attribute every connection to specific users and devices in an easy-to-read format.
+              </p>
+              <div style="display:flex; justify-content:center; gap:0.85rem; flex-wrap:wrap;">
+                <button class="btn btn-primary" onclick="window.wiresharkViewer.startLiveCapture()">
+                  <span>▶️</span> Start Live Packet Sniffer
+                </button>
+                <button class="btn btn-secondary" onclick="window.dashboardApp.openPcapImportModal()">
+                  <span>📁</span> Load Wireshark .pcap File
+                </button>
+                <button class="btn btn-outline" onclick="window.wiresharkViewer.loadSampleOfficeTrace()">
+                  <span>⚡</span> Load Office Network Demo Trace
+                </button>
+              </div>
+            </div>
+
+            <!-- Overall Category Traffic Distribution Meter -->
+            <div class="traffic-cat-bar-wrapper" id="wsTrafficCatWrapper">
+              <div class="traffic-cat-bar-header">
+                <div style="display:flex; align-items:center; gap:0.6rem;">
+                  <span style="font-size:1.1rem;">📊</span>
+                  <div>
+                    <h4 style="font-size:0.95rem; font-weight:700; color:#fff; margin:0;">Network Traffic Distribution by Application Category</h4>
+                    <span style="font-size:0.72rem; color:var(--text-muted);">Real-time bandwidth proportion identified through DNS, TLS SNI & HTTP Inspection</span>
+                  </div>
+                </div>
+                <div id="wsTrafficCatSummary" style="font-size:0.75rem; font-family:var(--font-mono); color:var(--accent-cyan); font-weight:600;">
+                  0 B total analyzed
+                </div>
+              </div>
+              <div class="traffic-cat-bar" id="wsCategoryTrafficBar">
+                <!-- Dynamically populated segmented color bars -->
+              </div>
+              <div class="traffic-cat-legend" id="wsCategoryLegend">
+                <!-- Dynamically populated legend -->
+              </div>
+            </div>
+
+            <!-- 2-Column Split: Applications Traffic Leaderboard & Active Users -->
+            <div class="dashboard-grid-2col" style="margin-bottom:1.75rem;">
+              
+              <!-- Left Column: Top Applications & Sites in Use -->
+              <div class="panel" style="padding:1.25rem;">
+                <div class="panel-header" style="margin-bottom:0.85rem; padding-bottom:0.6rem;">
+                  <div class="panel-title">
+                    <h4 style="font-size:1rem; font-weight:700; color:#fff;">Applications & Sites In Use</h4>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:0.4rem;">
+                    <button class="btn btn-sm btn-outline active" id="btnViewApps" onclick="window.wiresharkViewer.toggleAppViewMode('cards')">
+                      App Cards
+                    </button>
+                    <button class="btn btn-sm btn-outline" id="btnViewSites" onclick="window.wiresharkViewer.toggleAppViewMode('table')">
+                      Domains
+                    </button>
+                  </div>
+                </div>
+
+                <!-- View 1: Application Traffic Leaderboard Cards -->
+                <div id="wsAppCardsContainer" class="app-cards-grid">
+                  <!-- Rendered dynamically -->
+                </div>
+
+                <!-- View 2: Detailed Domains Table (Hidden by default) -->
+                <div id="wsSitesTableContainer" class="table-container" style="display:none; max-height:400px;">
+                  <table class="nessus-table">
+                    <thead>
+                      <tr>
+                        <th>Website / Domain</th>
+                        <th>Category</th>
+                        <th>Users</th>
+                        <th>Requests</th>
+                        <th>Data</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="wsSitesTableBody">
+                      <!-- Rendered dynamically -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Right Column: Active Users & Devices -->
+              <div class="panel" style="padding:1.25rem;">
+                <div class="panel-header" style="margin-bottom:0.85rem; padding-bottom:0.6rem;">
+                  <div class="panel-title">
+                    <h4 style="font-size:1rem; font-weight:700; color:#fff;">Active Users & Devices</h4>
+                  </div>
+                  <span style="font-size:0.75rem; color:var(--text-dim); font-family:var(--font-mono);">Traffic Attribution</span>
+                </div>
+                <div id="wsUsersGrid" style="display:flex; flex-direction:column; gap:0.85rem; max-height:420px; overflow-y:auto; padding-right:0.35rem;">
+                  <!-- Rendered dynamically -->
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Recorded Content Activity Stream (Easy-to-Read Format) -->
+            <div class="panel" style="padding:1.25rem;">
+              <div class="panel-header" style="margin-bottom:0.85rem; padding-bottom:0.6rem;">
+                <div class="panel-title">
+                  <div>
+                    <h4 style="font-size:1rem; font-weight:700; color:#fff;">Recorded Network Activity & Content (Easy-to-Read)</h4>
+                    <span style="font-size:0.75rem; color:var(--text-muted);">Plain-English timeline of applications and websites accessed by office users</span>
+                  </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+                  <div style="display:flex; gap:0.3rem;">
+                    <button class="btn btn-sm btn-primary" id="btnStreamCards" onclick="window.wiresharkViewer.toggleStreamViewMode('cards')">
+                      📋 Story Cards
+                    </button>
+                    <button class="btn btn-sm btn-secondary" id="btnStreamTable" onclick="window.wiresharkViewer.toggleStreamViewMode('table')">
+                      📊 Log Table
+                    </button>
+                  </div>
+                  <div class="search-input-group" style="min-width:240px;">
+                    <span class="search-icon" title="Click to search" onclick="window.wiresharkViewer.triggerWebSearch()">🔍</span>
+                    <input type="text" id="wsWebSearchInput" placeholder="Filter application, user, or recorded content...">
+                  </div>
+                  <button class="btn btn-primary btn-sm" id="btnWsSearchWeb" onclick="window.wiresharkViewer.triggerWebSearch()">
+                    🔍 Search
+                  </button>
+                  <span id="wsActiveFilterTag" style="display:none; padding:0.25rem 0.6rem; border-radius:4px; background:rgba(56,189,248,0.2); color:var(--accent-cyan); font-size:0.75rem; font-family:var(--font-mono);"></span>
+                  <button class="btn btn-outline btn-sm" onclick="window.wiresharkViewer.clearWebFilters()">Reset Filters</button>
+                </div>
+              </div>
+
+              <!-- Stream View Mode 1: Human-Readable Activity Cards (Default) -->
+              <div id="wsReadableCardsContainer" class="readable-cards-container">
+                <!-- Rendered dynamically -->
+              </div>
+
+              <!-- Stream View Mode 2: Standard Log Table -->
+              <div id="wsWebLogsTableContainer" class="table-container" style="display:none; max-height:380px;">
+                <table class="nessus-table">
+                  <thead>
+                    <tr>
+                      <th style="width:100px;">Time</th>
+                      <th style="width:190px;">User / Device</th>
+                      <th>Application & Destination</th>
+                      <th style="width:140px;">Category</th>
+                      <th style="width:110px;">Protocol</th>
+                      <th style="width:90px;">Data Size</th>
+                      <th style="width:120px;">Wireshark Frame</th>
+                    </tr>
+                  </thead>
+                  <tbody id="wsWebLogsTableBody">
+                    <!-- Rendered dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- SUB-VIEW 2: USER-TO-SITE MATRIX -->
+          <div id="wsViewMatrix" style="display:none;">
+            <div class="panel" style="padding:1.25rem;">
+              <div class="panel-header" style="margin-bottom:1rem; padding-bottom:0.75rem;">
+                <div class="panel-title">
+                  <div>
+                    <h4 style="font-size:1.05rem; font-weight:700; color:#fff;">User-to-Website Traffic Matrix</h4>
+                    <span style="font-size:0.78rem; color:var(--text-muted);">Directly attributes which websites each network client is actively accessing</span>
+                  </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:0.6rem;">
+                  <button class="btn btn-primary btn-sm" onclick="window.wiresharkViewer.startLiveCapture()">
+                    <span>▶️</span> Live Sniff
+                  </button>
+                </div>
+              </div>
+
+              <div class="table-container">
+                <table class="nessus-table">
+                  <thead>
+                    <tr>
+                      <th style="width:200px;">User & Client Device</th>
+                      <th>Network Subnet</th>
+                      <th>All Visited Sites & Portals</th>
+                      <th style="width:120px;">Top Destination</th>
+                      <th style="width:100px;">Total Hits</th>
+                      <th style="width:110px;">Bandwidth</th>
+                      <th style="width:130px;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="wsMatrixTableBody">
+                    <!-- Rendered dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- SUB-VIEW 3: RAW WIRESHARK DISSECTOR (3-PANE) -->
+          <div id="wsViewDissector" style="display:none;">
+            
+            <!-- Wireshark Display Filter Toolbar -->
+            <div class="ws-toolbar">
+              <div class="ws-filter-container">
+                <span style="position:absolute; left:0.75rem; color:#38bdf8; font-size:0.85rem; cursor:pointer;" title="Click to apply filter" onclick="window.wiresharkViewer.applyFilter(document.getElementById('wsFilterInput').value)">🔍</span>
+                <input type="text" id="wsFilterInput" placeholder="Apply a display filter ... (e.g. tcp, udp, dns, tls, http, arp, port 443)">
+              </div>
+              <button class="btn btn-primary btn-sm" id="btnWsApplyFilter" onclick="window.wiresharkViewer.applyFilter(document.getElementById('wsFilterInput').value)" title="Apply display filter to packet trace">
+                <span>▶</span> Apply Filter
+              </button>
+              <button class="btn btn-outline btn-sm" onclick="document.getElementById('wsFilterInput').value=''; window.wiresharkViewer.applyFilter('');" title="Clear packet display filter">
+                Clear
+              </button>
+              <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                <span class="filter-pill" style="cursor:pointer;" onclick="document.getElementById('wsFilterInput').value='tcp'; window.wiresharkViewer.applyFilter('tcp');">TCP</span>
+                <span class="filter-pill" style="cursor:pointer;" onclick="document.getElementById('wsFilterInput').value='udp'; window.wiresharkViewer.applyFilter('udp');">UDP</span>
+                <span class="filter-pill" style="cursor:pointer;" onclick="document.getElementById('wsFilterInput').value='dns'; window.wiresharkViewer.applyFilter('dns');">DNS</span>
+                <span class="filter-pill" style="cursor:pointer;" onclick="document.getElementById('wsFilterInput').value='tls'; window.wiresharkViewer.applyFilter('tls');">TLS</span>
+                <span class="filter-pill" style="cursor:pointer;" onclick="document.getElementById('wsFilterInput').value='http'; window.wiresharkViewer.applyFilter('http');">HTTP</span>
+                <span class="filter-pill" style="cursor:pointer;" onclick="document.getElementById('wsFilterInput').value='arp'; window.wiresharkViewer.applyFilter('arp');">ARP</span>
+              </div>
+              <div style="font-size:0.75rem; font-family:var(--font-mono); color:var(--text-dim);" id="wsPacketCount">
+                0 packets
+              </div>
+            </div>
+
+            <!-- Top Pane: Wireshark Packet Grid -->
+            <div class="ws-table-container">
+              <table class="ws-table" id="wsPacketTable">
+                <thead>
+                  <tr>
+                    <th style="width:50px;">No.</th>
+                    <th style="width:110px;">Time</th>
+                    <th style="width:160px;">Source</th>
+                    <th style="width:160px;">Destination</th>
+                    <th style="width:80px;">Protocol</th>
+                    <th style="width:70px;">Length</th>
+                    <th>Info</th>
+                  </tr>
+                </thead>
+                <tbody id="wsPacketTableBody">
+                  <!-- Dynamically rendered by wireshark-viewer.js -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Lower 2-Pane: Protocol Tree & Raw Hex Dump -->
+            <div class="ws-inspector-grid">
+              <div>
+                <div style="font-size:0.78rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:0.4rem; letter-spacing:0.05em;">
+                  Packet Details (Protocol Dissection Tree)
+                </div>
+                <div class="ws-tree-panel" id="wsPacketTree">
+                  <div style="color:var(--text-dim); padding:1rem; font-size:0.8rem;">
+                    Select a packet above to inspect protocol headers (Ethernet II, IPv4, TCP/UDP, TLS, DNS).
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div style="font-size:0.78rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:0.4rem; letter-spacing:0.05em;">
+                  Packet Bytes (Hex & ASCII Dump)
+                </div>
+                <div class="ws-hex-panel" id="wsHexDump">
+                  <pre style="color:var(--text-dim); padding:1rem; font-size:0.8rem;">Hex dump viewer will populate upon packet selection.</pre>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
+      <!-- TAB 5: LIVE NESSUS REST API CONTROLLER -->
+      <section class="tab-view" id="tab-api-controller">
+        <div class="panel" style="margin-bottom:1.5rem;">
+          <div class="panel-header">
+            <div class="panel-title">
+              <h3>Tenable Nessus REST API Scanner Connector</h3>
+              <span>Direct Real-Time Synchronizer</span>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="window.dashboardApp.openApiSettings()">
+              <span>⚙️</span> Edit Credentials
+            </button>
+          </div>
+
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:1.25rem; margin-bottom:1.5rem;">
+            <div style="background:rgba(15,23,42,0.6); border:1px solid var(--border-glass); border-radius:10px; padding:1.25rem;">
+              <div style="font-size:0.8rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; margin-bottom:0.5rem;">Target Nessus Scanner</div>
+              <div style="font-family:var(--font-mono); font-size:1.05rem; color:#fff; word-break:break-all;" id="apiDisplayUrl">https://localhost:8834</div>
+              <div style="font-size:0.75rem; color:var(--text-dim); margin-top:0.4rem;">Tenable Nessus Professional / Expert / Scanner API</div>
+            </div>
+
+            <div style="background:rgba(15,23,42,0.6); border:1px solid var(--border-glass); border-radius:10px; padding:1.25rem;">
+              <div style="font-size:0.8rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; margin-bottom:0.5rem;">Sync Available Scans</div>
+              <div style="display:flex; gap:0.6rem; align-items:center;">
+                <select class="form-control" id="liveScanSelect" style="flex:1;">
+                  <option value="">(Connect API to list scans)</option>
+                </select>
+                <button class="btn btn-primary btn-sm" onclick="window.dashboardApp.loadSelectedScan()">Load</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Remote Scans Table -->
+          <div style="margin-top:1.5rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.85rem;">
+              <h4 style="font-size:0.95rem; font-weight:600; color:#fff;">Scans on Nessus Server</h4>
+              <button class="btn btn-secondary btn-sm" onclick="window.dashboardApp.fetchRemoteScans()">
+                <span>🔄</span> Refresh Scans
+              </button>
+            </div>
+            <div class="table-container">
+              <table class="nessus-table">
+                <thead>
+                  <tr>
+                    <th>Scan ID</th>
+                    <th>Scan Name</th>
+                    <th>Status</th>
+                    <th>Last Modified</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="nessusScanListTableBody">
+                  <tr>
+                    <td colspan="5" style="text-align:center; padding:1.5rem; color:var(--text-dim);">
+                      Click 'Edit Credentials' or 'Refresh Scans' to fetch live scan list from Nessus.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Local Proxy Helper Banner -->
+        <div class="panel" style="border-left:4px solid var(--accent-cyan);">
+          <h4 style="font-size:0.95rem; font-weight:700; color:#fff; margin-bottom:0.5rem;">💡 Browser CORS & SSL Certificate Note</h4>
+          <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.6;">
+            By default, web browsers prevent web pages from communicating directly with local services that use self-signed SSL certificates (such as Nessus running on <code>https://localhost:8834</code>).
+            We have included a ready-to-run local proxy script in <code>proxy/server.js</code>. Run <code>node proxy/server.js</code> or double click <code>proxy/start-proxy.bat</code> and enable <strong>Use Local Proxy</strong> in API Settings to connect with 100% reliability!
+          </p>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- MODAL 1: Host Detail Drawer -->
+    <div class="modal-backdrop" id="hostDetailModal">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span style="font-size:1.4rem;">🖥️</span>
+            <div>
+              <h3 id="mHostIp">192.168.20.12</h3>
+              <span id="mHostName" style="font-size:0.75rem; color:var(--text-muted); font-family:var(--font-mono);">APP-SRV01.corp.internal</span>
+            </div>
+          </div>
+          <button class="modal-close-btn" onclick="window.dashboardApp.closeModal('hostDetailModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="info-matrix-grid">
+            <div class="info-item">
+              <span class="info-label">FQDN</span>
+              <span class="info-value" id="mHostFqdn">app-srv01.office.local</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">MAC Address</span>
+              <span class="info-value" id="mHostMac">00:50:56:A3:89:1F</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Operating System</span>
+              <span class="info-value" id="mHostOs">Ubuntu Linux 20.04</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Subnet</span>
+              <span class="info-value" id="mHostSubnet">192.168.20.0/24</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Risk Rating</span>
+              <span class="info-value" id="mHostRisk" style="color:var(--crit-color); font-weight:700;">98 / 100</span>
+            </div>
+          </div>
+
+          <h4 style="font-size:0.9rem; font-weight:700; color:#fff; margin-bottom:0.6rem;">Open Ports & Service Banners</h4>
+          <div id="mHostPortsList" style="margin-bottom:1.5rem;"></div>
+
+          <h4 style="font-size:0.9rem; font-weight:700; color:#fff; margin-bottom:0.6rem;">Detected Vulnerabilities</h4>
+          <div id="mHostVulnsList"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="window.dashboardApp.closeModal('hostDetailModal')">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 2: Vulnerability Detail Modal -->
+    <div class="modal-backdrop" id="vulnDetailModal">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span class="sev-badge critical" id="mVulnSevBadge">CRITICAL</span>
+            <div>
+              <h3 id="mVulnName" style="font-size:1.05rem;">Apache Log4j Remote Code Execution</h3>
+              <span style="font-size:0.75rem; color:var(--text-dim); font-family:var(--font-mono);">Plugin #<span id="mVulnPluginId">156014</span></span>
+            </div>
+          </div>
+          <button class="modal-close-btn" onclick="window.dashboardApp.closeModal('vulnDetailModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="info-matrix-grid">
+            <div class="info-item">
+              <span class="info-label">CVSS v3.0 Score</span>
+              <span class="info-value" id="mVulnCvss" style="color:var(--crit-color); font-weight:700;">10.0</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Tenable VPR</span>
+              <span class="info-value" id="mVulnVpr" style="color:var(--crit-color); font-weight:700;">9.9</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">CVE Reference</span>
+              <span class="info-value" id="mVulnCve" style="color:var(--accent-purple);">CVE-2021-44228</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Plugin Family</span>
+              <span class="info-value" id="mVulnFamily">CGI abuses</span>
+            </div>
+          </div>
+
+          <div style="margin-bottom:1.25rem;" id="mVulnExploitInfo"></div>
+
+          <div style="margin-bottom:1.25rem;">
+            <h5 style="font-size:0.78rem; text-transform:uppercase; color:var(--text-dim); margin-bottom:0.35rem;">Synopsis</h5>
+            <p id="mVulnSynopsis" style="font-size:0.85rem; color:var(--text-main); line-height:1.5;"></p>
+          </div>
+
+          <div style="margin-bottom:1.25rem;">
+            <h5 style="font-size:0.78rem; text-transform:uppercase; color:var(--text-dim); margin-bottom:0.35rem;">Description</h5>
+            <p id="mVulnDesc" style="font-size:0.85rem; color:var(--text-muted); line-height:1.6;"></p>
+          </div>
+
+          <div style="margin-bottom:1.25rem; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); border-radius:8px; padding:1rem;">
+            <h5 style="font-size:0.78rem; text-transform:uppercase; color:var(--success-color); margin-bottom:0.35rem; font-weight:700;">Actionable Remediation & Solution</h5>
+            <p id="mVulnSolution" style="font-size:0.85rem; color:#fff; line-height:1.5;"></p>
+          </div>
+
+          <div style="margin-bottom:1.25rem;">
+            <h5 style="font-size:0.78rem; text-transform:uppercase; color:var(--text-dim); margin-bottom:0.35rem;">Packet Trace & Probe Evidence</h5>
+            <pre id="mVulnPacketEvidence" style="background:#080d1a; padding:0.85rem; border-radius:6px; font-family:var(--font-mono); font-size:0.75rem; color:#38bdf8; overflow-x:auto; border:1px solid var(--border-glass);"></pre>
+          </div>
+
+          <div>
+            <h5 style="font-size:0.78rem; text-transform:uppercase; color:var(--text-dim); margin-bottom:0.35rem;">Affected Office Assets</h5>
+            <div id="mVulnAffectedHosts" style="display:flex; flex-wrap:wrap; gap:0.4rem;"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="window.dashboardApp.closeModal('vulnDetailModal')">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 3: Nessus API Settings Modal -->
+    <div class="modal-backdrop" id="apiSettingsModal">
+      <div class="modal-dialog" style="max-width:580px;">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span style="font-size:1.3rem;">⚡</span>
+            <h3>Tenable Nessus API Connection</h3>
+          </div>
+          <button class="modal-close-btn" onclick="window.dashboardApp.closeModal('apiSettingsModal')">&times;</button>
+        </div>
+        <form id="nessusApiConfigForm">
+          <div class="modal-body">
+            <div class="form-group">
+              <label class="form-label" for="cfgServerUrl">Nessus Server URL</label>
+              <input type="text" class="form-control" id="cfgServerUrl" placeholder="https://localhost:8834" required>
+              <span class="form-hint">Address and port of your Nessus instance (usually port 8834).</span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="cfgAccessKey">Access Key</label>
+              <input type="password" class="form-control" id="cfgAccessKey" placeholder="Generated from Nessus -> Settings -> API Keys" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="cfgSecretKey">Secret Key</label>
+              <input type="password" class="form-control" id="cfgSecretKey" placeholder="Secret API Key" required>
+            </div>
+
+            <div style="background:rgba(15,23,42,0.6); padding:1rem; border-radius:8px; border:1px solid var(--border-glass); margin-bottom:1rem;">
+              <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.6rem;">
+                <input type="checkbox" id="cfgUseProxy" checked style="width:16px; height:16px; cursor:pointer;">
+                <label for="cfgUseProxy" style="font-size:0.85rem; font-weight:600; color:#fff; cursor:pointer;">
+                  Use Local Proxy (Bypasses Browser CORS & SSL Restrictions)
+                </label>
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" for="cfgProxyUrl" style="font-size:0.75rem;">Proxy Endpoint</label>
+                <input type="text" class="form-control" id="cfgProxyUrl" value="http://localhost:3000/api/nessus">
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="btnTestConnection">Test Connection</button>
+            <button type="submit" class="btn btn-primary">Save & Connect</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL 4: Import .nessus / JSON File Modal -->
+    <div class="modal-backdrop" id="importModal">
+      <div class="modal-dialog" style="max-width:540px;">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span style="font-size:1.3rem;">📁</span>
+            <h3>Import Nessus Scan File</h3>
+          </div>
+          <button class="modal-close-btn" onclick="window.dashboardApp.closeModal('importModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div id="fileDropZone" style="border:2px dashed var(--border-glass); border-radius:12px; padding:2.5rem 1.5rem; text-align:center; cursor:pointer; transition:var(--transition);">
+            <div style="font-size:2.5rem; margin-bottom:0.75rem;">📄</div>
+            <h4 style="font-size:1rem; font-weight:600; color:#fff; margin-bottom:0.35rem;">Drag & Drop .nessus (XML) or .json file here</h4>
+            <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1.25rem;">Directly parsed locally in your browser without uploading to external servers.</p>
+            <label class="btn btn-primary btn-sm" for="scanFileInput" style="cursor:pointer;">
+              Browse Files
+            </label>
+            <input type="file" id="scanFileInput" accept=".nessus,.xml,.json" style="display:none;">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="window.dashboardApp.closeModal('importModal')">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 5: Import Wireshark PCAP File Modal -->
+    <div class="modal-backdrop" id="pcapImportModal">
+      <div class="modal-dialog" style="max-width:540px;">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span style="font-size:1.3rem;">🦈</span>
+            <h3>Import Wireshark Capture (.pcap / .pcapng)</h3>
+          </div>
+          <button class="modal-close-btn" onclick="window.dashboardApp.closeModal('pcapImportModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div id="wsPcapDropZone" style="border:2px dashed var(--border-glass); border-radius:12px; padding:2.5rem 1.5rem; text-align:center; cursor:pointer; transition:var(--transition);">
+            <div style="font-size:2.5rem; margin-bottom:0.75rem;">📦</div>
+            <h4 style="font-size:1rem; font-weight:600; color:#fff; margin-bottom:0.35rem;">Drag & Drop .pcap, .pcapng, or Wireshark JSON</h4>
+            <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1.25rem;">Directly parsed locally in your browser with full protocol dissection and hex inspection.</p>
+            <label class="btn btn-primary btn-sm" for="wsPcapFileInput" style="cursor:pointer;">
+              Browse Capture File
+            </label>
+            <input type="file" id="wsPcapFileInput" accept=".pcap,.pcapng,.cap,.json" style="display:none;">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="window.dashboardApp.closeModal('pcapImportModal')">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 6: Website Deep-Dive Modal -->
+    <div class="modal-backdrop" id="siteDetailModal">
+      <div class="modal-dialog" style="max-width:720px;">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span style="font-size:1.3rem;">🌐</span>
+            <div id="siteDetailHeaderTitle">
+              <h3>Website Intelligence Deep-Dive</h3>
+              <span style="font-size:0.75rem; color:var(--text-muted);">Users & Traffic Attribution</span>
+            </div>
+          </div>
+          <button class="modal-close-btn" onclick="window.dashboardApp.closeModal('siteDetailModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="siteDetailBody">
+          <!-- Dynamically populated -->
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="window.dashboardApp.closeModal('siteDetailModal')">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 7: User Profile & Browsing Matrix Modal -->
+    <div class="modal-backdrop" id="userDetailModal">
+      <div class="modal-dialog" style="max-width:720px;">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span style="font-size:1.3rem;">👥</span>
+            <div id="userDetailHeaderTitle">
+              <h3>User Network & Web Profile</h3>
+              <span style="font-size:0.75rem; color:var(--text-muted);">Attributed Browsing & Port Activity</span>
+            </div>
+          </div>
+          <button class="modal-close-btn" onclick="window.dashboardApp.closeModal('userDetailModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="userDetailBody">
+          <!-- Dynamically populated -->
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="window.dashboardApp.closeModal('userDetailModal')">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 8: How Wireshark Tracks Websites & Users Modal -->
+    <div class="modal-backdrop" id="howItWorksModal">
+      <div class="modal-dialog" style="max-width:800px;">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span style="font-size:1.4rem;">💡</span>
+            <div>
+              <h3>How Wireshark Tracks Visited Websites & Users</h3>
+              <span style="font-size:0.75rem; color:var(--text-muted);">Deep Packet Inspection (DPI) & Metadata Extraction</span>
+            </div>
+          </div>
+          <button class="modal-close-btn" onclick="window.dashboardApp.closeModal('howItWorksModal')">&times;</button>
+        </div>
+        <div class="modal-body" style="font-size:0.85rem; line-height:1.6; color:var(--text-main);">
+          <div style="background:rgba(56,189,248,0.08); border:1px solid rgba(56,189,248,0.25); border-radius:8px; padding:1rem; margin-bottom:1.25rem;">
+            <strong style="color:var(--accent-cyan); font-size:0.95rem;">Key SOC Insight:</strong>
+            <p style="margin-top:0.35rem; color:#fff;">
+              Even though 98% of web traffic today is encrypted using HTTPS/TLS, Wireshark can still accurately track <strong>which websites are being visited</strong> and <strong>which user is visiting them</strong> without needing decryption keys or SSL proxies!
+            </p>
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; margin-bottom:1.5rem;">
+            <div style="background:rgba(15,23,42,0.6); border:1px solid var(--border-glass); border-radius:10px; padding:1.2rem;">
+              <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+                <span style="font-size:1.2rem;">1️⃣</span>
+                <h4 style="font-size:0.95rem; font-weight:700; color:#fff;">DNS Resolution (UDP Port 53)</h4>
+              </div>
+              <p style="color:var(--text-muted); font-size:0.8rem; margin-bottom:0.75rem;">
+                Before any device connects to a website, the OS asks the DNS server (or hotspot gateway) to convert the domain name (e.g., <code>youtube.com</code>) into an IP address.
+              </p>
+              <div style="font-family:var(--font-mono); font-size:0.75rem; background:rgba(0,0,0,0.4); padding:0.6rem; border-radius:6px; color:var(--accent-cyan);">
+                Src: 10.101.133.29 ➔ Dst: 8.8.8.8<br>
+                DNS Query: "A youtube.com"
+              </div>
+            </div>
+
+            <div style="background:rgba(15,23,42,0.6); border:1px solid var(--border-glass); border-radius:10px; padding:1.2rem;">
+              <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+                <span style="font-size:1.2rem;">2️⃣</span>
+                <h4 style="font-size:0.95rem; font-weight:700; color:#fff;">TLS SNI Extension (TCP Port 443)</h4>
+              </div>
+              <p style="color:var(--text-muted); font-size:0.8rem; margin-bottom:0.75rem;">
+                During the TLS handshake (RFC 6066), the browser sends the <strong>Server Name Indication (SNI)</strong> in plain text so the web server serves the correct SSL certificate.
+              </p>
+              <div style="font-family:var(--font-mono); font-size:0.75rem; background:rgba(0,0,0,0.4); padding:0.6rem; border-radius:6px; color:#34d399;">
+                ClientHello (TLSv1.3)<br>
+                Extension: server_name: "github.com"
+              </div>
+            </div>
+          </div>
+
+          <div style="background:rgba(15,23,42,0.6); border:1px solid var(--border-glass); border-radius:10px; padding:1.2rem; margin-bottom:1.25rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+              <span style="font-size:1.2rem;">3️⃣</span>
+              <h4 style="font-size:0.95rem; font-weight:700; color:#fff;">User & Device Attribution</h4>
+            </div>
+            <p style="color:var(--text-muted); font-size:0.8rem; margin-bottom:0.75rem;">
+              Every captured IP packet contains a <strong>Source IP address</strong> (e.g. <code>10.101.133.29</code>). The dashboard correlates this IP with:
+            </p>
+            <ul style="padding-left:1.5rem; color:var(--text-muted); font-size:0.8rem; display:flex; flex-direction:column; gap:0.35rem;">
+              <li><strong>Local Host / Hotspot Discovery:</strong> Current machine (<code>10.101.133.29</code>) and gateway (<code>10.101.133.176</code>).</li>
+              <li><strong>Nessus Scan Targets:</strong> Correlated against Tenable Nessus host catalog and NetBIOS/DNS hostnames.</li>
+              <li><strong>Layer 2 MAC Addresses:</strong> Derived from Ethernet frames for physical hardware manufacturer identification.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-primary" onclick="window.dashboardApp.closeModal('howItWorksModal')">Got it</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/mock-data.js"></script>
+  <script src="js/nessus-api.js"></script>
+  <script src="js/nessus-parser.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/wireshark-viewer.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
